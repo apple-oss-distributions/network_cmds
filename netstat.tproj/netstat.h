@@ -3,22 +3,21 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
- * This file contains Original Code and/or Modifications of Original Code
- * as defined in and that are subject to the Apple Public Source License
- * Version 2.0 (the 'License'). You may not use this file except in
- * compliance with the License. Please obtain a copy of the License at
- * http://www.opensource.apple.com/apsl/ and read it before using this
- * file.
+ * "Portions Copyright (c) 1999 Apple Computer, Inc.  All Rights
+ * Reserved.  This file contains Original Code and/or Modifications of
+ * Original Code as defined in and that are subject to the Apple Public
+ * Source License Version 1.0 (the 'License').  You may not use this file
+ * except in compliance with the License.  Please obtain a copy of the
+ * License at http://www.apple.com/publicsource and read it before using
+ * this file.
  * 
  * The Original Code and all software distributed under the License are
  * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
  * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
- * Please see the License for the specific language governing rights and
- * limitations under the License.
+ * FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT.  Please see the
+ * License for the specific language governing rights and limitations
+ * under the License."
  * 
  * @APPLE_LICENSE_HEADER_END@
  */
@@ -82,7 +81,9 @@ extern int	unit;	/* unit number for above */
 
 extern int	af;	/* address family */
 
+#if 0
 int	kread (u_long addr, char *buf, int size);
+#endif
 char	*plural (int);
 char	*plurales (int);
 
@@ -101,15 +102,17 @@ void	ip6_stats (u_long, char *, int);
 void	ip6_ifstats (char *);
 void	icmp6_stats (u_long, char *, int);
 void	icmp6_ifstats (char *);
+#ifdef notyet
 void	pim6_stats (u_long, char *, int);
+#endif
 void	rip6_stats (u_long, char *, int);
-void	mroute6pr (u_long, u_long);
-void	mrt6_stats (u_long);
+void	mroute6pr (void);
+void	mrt6_stats (void);
 
 struct sockaddr_in6;
 struct in6_addr;
 char *routename6 (struct sockaddr_in6 *);
-char *netname6 (struct sockaddr_in6 *, struct in6_addr *);
+char *netname6 (struct sockaddr_in6 *, struct sockaddr *);
 #endif /*INET6*/
 
 #ifdef IPSEC
@@ -118,17 +121,16 @@ void	pfkey_stats (u_long, char *, int);
 
 void	bdg_stats (u_long, char *, int);
 
-//void	mbpr (u_long, u_long, u_long, u_long);
-void	mbpr (u_long);
+void	mbpr (void);
 
 void	hostpr (u_long, u_long);
 void	impstats (u_long, u_long);
 
-void	intpr (int, u_long, void (*)(char *));
+void	intpr (void (*)(char *));
 
 void	pr_rthdr (int);
 void	pr_family (int);
-void	rt_stats (u_long, u_long);
+void	rt_stats (void);
 char	*ipx_pnet (struct sockaddr *);
 char	*ipx_phost (struct sockaddr *);
 char	*ns_phost (struct sockaddr *);
@@ -172,6 +174,6 @@ void	tp_protopr (u_long, char *, int);
 void	tp_inproto (u_long);
 void	tp_stats (caddr_t, caddr_t);
 
-void	mroutepr (u_long, u_long);
-void	mrt_stats (u_long);
+void	mroutepr (void);
+void	mrt_stats (void);
 

@@ -1,27 +1,5 @@
-/*
- * Copyright (c) 1999 Apple Computer, Inc. All rights reserved.
- *
- * @APPLE_LICENSE_HEADER_START@
- * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
- * This file contains Original Code and/or Modifications of Original Code
- * as defined in and that are subject to the Apple Public Source License
- * Version 2.0 (the 'License'). You may not use this file except in
- * compliance with the License. Please obtain a copy of the License at
- * http://www.opensource.apple.com/apsl/ and read it before using this
- * file.
- * 
- * The Original Code and all software distributed under the License are
- * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
- * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
- * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
- * Please see the License for the specific language governing rights and
- * limitations under the License.
- * 
- * @APPLE_LICENSE_HEADER_END@
- */
+/*	$NetBSD: tftpsubs.h,v 1.4 2003/08/07 11:16:14 agc Exp $	*/
+
 /*
  * Copyright (c) 1993
  *	The Regents of the University of California.  All rights reserved.
@@ -34,11 +12,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -61,11 +35,13 @@
  * Prototypes for read-ahead/write-behind subroutines for tftp user and
  * server.
  */
-struct tftphdr *r_init __P((void));
-void	read_ahead __P((FILE *, int));
-int	readit __P((FILE *, struct tftphdr **, int));
 
-int	synchnet __P((int));
+
+struct tftphdr *r_init __P((void));
+void	read_ahead __P((FILE *, int, int));
+int	readit __P((FILE *, struct tftphdr **, int, int));
+
+int	synchnet __P((int, int));
 
 struct tftphdr *w_init __P((void));
 int	write_behind __P((FILE *, int));

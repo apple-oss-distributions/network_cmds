@@ -42,11 +42,13 @@ static const char copyright[] =
 static char sccsid[] = "@(#)ifconfig.c	8.2 (Berkeley) 2/16/94";
 #endif
 static const char rcsid[] =
-	"$Id: ifconfig.c,v 1.5 2003/07/02 01:22:29 lindak Exp $";
+	"$Id: ifconfig.c,v 1.8 2004/08/26 23:55:21 lindak Exp $";
 #endif /* not lint */
 
 #include <sys/param.h>
+#define KERNEL_PRIVATE
 #include <sys/ioctl.h>
+#undef KERNEL_PRIVATE
 #include <sys/socket.h>
 #include <sys/sysctl.h>
 #include <sys/time.h>
@@ -86,6 +88,7 @@ static const char rcsid[] =
 #include <string.h>
 #include <unistd.h>
 
+
 #include "ifconfig.h"
 
 /* wrapper for KAME-special getnameinfo() */
@@ -124,6 +127,7 @@ static	int ip6lifetime;
 
 struct	afswtch;
 
+int bond_details = 0;
 int supmedia = 0;
 int listcloners = 0;
 
@@ -164,8 +168,10 @@ c_func2	setip6lifetime;
 #endif
 c_func	setifipdst;
 c_func	setifflags, setifmetric, setifmtu, setiflladdr;
+c_func	clone_destroy;
 
 
+void clone_create(void);
 #define	NEXTARG		0xffffff
 #define	NEXTARG2	0xfffffe
 
@@ -226,15 +232,17 @@ struct	cmd {
 	{ "vlandev",	NEXTARG,	setvlandev },
 	{ "-vlandev",	NEXTARG,	unsetvlandev },
 #endif
+#ifdef USE_BONDS
+	{ "bonddev",	NEXTARG,	setbonddev },
+	{ "-bonddev",	NEXTARG,	unsetbonddev },
+#endif
 #if 0
 	/* XXX `create' special-cased below */
 	{"create",	0,		clone_create },
 	{"plumb",	0,		clone_create },
 #endif
-#ifndef __APPLE__
 	{"destroy",	0,		clone_destroy },
 	{"unplumb",	0,		clone_destroy },
-#endif
 #ifdef USE_IEEE80211
 	{ "ssid",	NEXTARG,	set80211ssid },
 	{ "nwid",	NEXTARG,	set80211ssid },
@@ -319,6 +327,9 @@ struct	afswtch {
 #ifdef USE_VLANS
 	{ "vlan", AF_UNSPEC, vlan_status, NULL, NULL, },  /* XXX not real!! */
 #endif
+#ifdef USE_BONDS
+	{ "bond", AF_UNSPEC, bond_status, NULL, NULL, },  /* XXX not real!! */
+#endif
 #ifdef USE_IEEE80211
 	{ "ieee80211", AF_UNSPEC, ieee80211_status, NULL, NULL, },  /* XXX not real!! */
 #endif
@@ -357,21 +368,21 @@ void
 usage()
 {
 #ifndef INET6
-	fprintf(stderr, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
-	"usage: ifconfig interface address_family [address [dest_address]]",
-	"                [parameters]",
-	"       ifconfig interface create",
-	"       ifconfig -a [-d] [-m] [-u] [address_family]",
-	"       ifconfig -l [-d] [-u] [address_family]",
-	"       ifconfig [-d] [-m] [-u]");
+    	fprintf(stderr, "%s",
+	"usage: ifconfig interface address_family [address [dest_address]]\n"
+	"                [parameters]\n"
+	"       ifconfig interface create\n"
+	"       ifconfig -a [-d] [-m] [-u] [address_family]\n"
+	"       ifconfig -l [-d] [-u] [address_family]\n"
+	"       ifconfig [-d] [-m] [-u]\n");
 #else
-	fprintf(stderr, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
-	"usage: ifconfig [-L] interface address_family [address [dest_address]]",
-	"                [parameters]",
-	"       ifconfig interface create",
-	"       ifconfig -a [-L] [-d] [-m] [-u] [address_family]",
-	"       ifconfig -l [-d] [-u] [address_family]",
-	"       ifconfig [-L] [-d] [-m] [-u]");
+	fprintf(stderr, "%s",
+	"usage: ifconfig [-L] interface address_family [address [dest_address]]\n"
+	"                [parameters]\n"
+	"       ifconfig interface create\n"
+	"       ifconfig -a [-L] [-d] [-m] [-u] [address_family]\n"
+	"       ifconfig -l [-d] [-u] [address_family]\n"
+	"       ifconfig [-L] [-d] [-m] [-u]\n");
 #endif
 	exit(1);
 }
@@ -397,7 +408,7 @@ main(argc, argv)
 
 	/* Parse leading line options */
 	all = downonly = uponly = namesonly = 0;
-	while ((c = getopt(argc, argv, "adlmu"
+	while ((c = getopt(argc, argv, "abdlmu"
 #ifdef INET6
 					"L"
 #endif
@@ -405,6 +416,9 @@ main(argc, argv)
 		switch (c) {
 		case 'a':	/* scan all interfaces */
 			all++;
+			break;
+		case 'b':	/* bond detailed output */
+			bond_details++;
 			break;
 		case 'd':	/* restrict scan to "down" interfaces */
 			downonly++;
@@ -431,8 +445,8 @@ main(argc, argv)
 	argc -= optind;
 	argv += optind;
 
-	/* -l cannot be used with -a or -m */
-	if (namesonly && (all || supmedia))
+	/* -l cannot be used with -a or -m or -b */
+	if (namesonly && (all || supmedia || bond_details))
 		usage();
 
 	/* nonsense.. */
@@ -473,9 +487,7 @@ main(argc, argv)
 		 */
 		if (argc > 0 && (strcmp(argv[0], "create") == 0 ||
 		    strcmp(argv[0], "plumb") == 0)) {
-#ifndef __APPLE__
 			clone_create();
-#endif
 			argc--, argv++;
 			if (argc == 0)
 				exit(0);
@@ -664,7 +676,7 @@ ifconfig(argc, argv, afp)
 		if (afp->af_ridreq == NULL || afp->af_difaddr == 0) {
 			warnx("interface %s cannot change %s addresses!",
 			      name, afp->af_name);
-			clearaddr = NULL;
+			clearaddr = 0;
 		}
 	}
 	if (clearaddr) {
@@ -681,7 +693,7 @@ ifconfig(argc, argv, afp)
 		if (afp->af_addreq == NULL || afp->af_aifaddr == 0) {
 			warnx("interface %s cannot change %s addresses!",
 			      name, afp->af_name);
-			newaddr = NULL;
+			newaddr = 0;
 		}
 	}
 	if (newaddr && (setaddr || setmask)) {
@@ -694,7 +706,7 @@ ifconfig(argc, argv, afp)
 }
 #define RIDADDR 0
 #define ADDR	1
-#define MASK	2
+#define NMASK	2
 #define DSTADDR	3
 
 /*ARGSUSED*/
@@ -804,7 +816,7 @@ setifnetmask(addr, dummy, s, afp)
 	if (*afp->af_getaddr == NULL)
 		return;
 	setmask++;
-	(*afp->af_getaddr)(addr, MASK);
+	(*afp->af_getaddr)(addr, NMASK);
 }
 
 #ifdef INET6
@@ -816,7 +828,7 @@ setifprefixlen(addr, dummy, s, afp)
 	const struct afswtch *afp;
 {
         if (*afp->af_getprefix)
-                (*afp->af_getprefix)(addr, MASK);
+                (*afp->af_getprefix)(addr, NMASK);
 	explicit_prefix = 1;
 }
 
@@ -1111,6 +1123,10 @@ status(afp, addrcount, sdl, ifm, ifam)
 #ifdef USE_VLANS
 	if (allfamilies || afp->af_status == vlan_status)
 		vlan_status(s, NULL);
+#endif
+#ifdef USE_BONDS
+	if (allfamilies || afp->af_status == bond_status)
+		bond_status(s, NULL);
 #endif
 #ifdef USE_IEEE80211
 	if (allfamilies || afp->af_status == ieee80211_status)
@@ -1463,7 +1479,7 @@ in_getaddr(s, which)
 	struct netent *np;
 
 	sin->sin_len = sizeof(*sin);
-	if (which != MASK)
+	if (which != NMASK)
 		sin->sin_family = AF_INET;
 
 	if (which == ADDR) {
@@ -1473,7 +1489,7 @@ in_getaddr(s, which)
 			/* address is `name/masklen' */
 			int masklen;
 			int ret;
-			struct sockaddr_in *min = sintab[MASK];
+			struct sockaddr_in *min = sintab[NMASK];
 			*p = '\0';
 			ret = sscanf(p+1, "%u", &masklen);
 			if(ret != 1 || (masklen < 0 || masklen > 32)) {
@@ -1515,14 +1531,14 @@ in6_getaddr(s, which)
 	newaddr &= 1;
 
 	sin->sin6_len = sizeof(*sin);
-	if (which != MASK)
+	if (which != NMASK)
 		sin->sin6_family = AF_INET6;
 
 	if (which == ADDR) {
 		char *p = NULL;
 		if((p = strrchr(s, '/')) != NULL) {
 			*p = '\0';
-			in6_getprefix(p + 1, MASK);
+			in6_getprefix(p + 1, NMASK);
 			explicit_prefix = 1;
 		}
 	}
@@ -1551,7 +1567,7 @@ in6_getprefix(plen, which)
 	if ((len < 0) || (len > 128))
 		errx(1, "%s: bad value", plen);
 	sin->sin6_len = sizeof(*sin);
-	if (which != MASK)
+	if (which != NMASK)
 		sin->sin6_family = AF_INET6;
 	if ((len == 0) || (len == 128)) {
 		memset(&sin->sin6_addr, 0xff, sizeof(struct in6_addr));
@@ -1609,7 +1625,7 @@ ether_getaddr(addr, which)
         ea = ether_aton(addr);
         if (ea == NULL)
                 errx(1, "malformed ether address");
-        if (which == MASK)
+        if (which == NMASK)
                 errx(1, "Ethernet does not use netmasks");
         sea->sa_family = AF_LINK;
         sea->sa_len = ETHER_ADDR_LEN;      
@@ -1678,3 +1694,33 @@ sec2str(total)
 }
 #endif /*INET6*/
 
+void
+clone_create(void)
+{
+	int s;
+	
+	s = socket(AF_INET, SOCK_DGRAM, 0);
+	if (s == -1)
+		err(1, "socket");
+	
+	memset(&ifr, 0, sizeof(ifr));
+	(void) strlcpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	if (ioctl(s, SIOCIFCREATE, &ifr) < 0)
+		err(1, "SIOCIFCREATE");
+	
+	if (strcmp(name, ifr.ifr_name) != 0) {
+		printf("%s\n", ifr.ifr_name);
+		strlcpy(name, ifr.ifr_name, sizeof(name));
+	}
+	
+	close(s);
+}
+
+void
+clone_destroy(const char *val, int d, int s, const struct afswtch *rafp)
+{
+	
+	(void) strncpy(ifr.ifr_name, name, sizeof(ifr.ifr_name));
+	if (ioctl(s, SIOCIFDESTROY, &ifr) < 0)
+		err(1, "SIOCIFDESTROY");
+}

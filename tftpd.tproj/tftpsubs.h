@@ -1,5 +1,7 @@
+/*	$NetBSD: tftpsubs.h,v 1.4 2003/08/07 11:16:14 agc Exp $	*/
+
 /*
- * Copyright (c) 1989, 1993
+ * Copyright (c) 1993
  *	The Regents of the University of California.  All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -10,11 +12,7 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
- * 4. Neither the name of the University nor the names of its contributors
+ * 3. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
  *
@@ -30,11 +28,21 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	@(#)pathnames.h	8.1 (Berkeley) 6/6/93
+ *	@(#)tftpsubs.h	8.1 (Berkeley) 6/6/93
  */
 
-#include <paths.h>
+/*
+ * Prototypes for read-ahead/write-behind subroutines for tftp user and
+ * server.
+ */
 
-#define	_PATH_KLOG	"/dev/klog"
-#define	_PATH_LOGCONF	"/etc/syslog.conf"
-#define	_PATH_LOGPID	"/var/run/syslog.pid"
+
+struct tftphdr *r_init __P((void));
+void	read_ahead __P((FILE *, int, int));
+int	readit __P((FILE *, struct tftphdr **, int, int));
+
+int	synchnet __P((int, int));
+
+struct tftphdr *w_init __P((void));
+int	write_behind __P((FILE *, int));
+int	writeit __P((FILE *, struct tftphdr **, int, int));

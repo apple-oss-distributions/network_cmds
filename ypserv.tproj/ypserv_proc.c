@@ -3,22 +3,21 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
- * 
- * This file contains Original Code and/or Modifications of Original Code
- * as defined in and that are subject to the Apple Public Source License
- * Version 2.0 (the 'License'). You may not use this file except in
- * compliance with the License. Please obtain a copy of the License at
- * http://www.opensource.apple.com/apsl/ and read it before using this
- * file.
+ * "Portions Copyright (c) 1999 Apple Computer, Inc.  All Rights
+ * Reserved.  This file contains Original Code and/or Modifications of
+ * Original Code as defined in and that are subject to the Apple Public
+ * Source License Version 1.0 (the 'License').  You may not use this file
+ * except in compliance with the License.  Please obtain a copy of the
+ * License at http://www.apple.com/publicsource and read it before using
+ * this file.
  * 
  * The Original Code and all software distributed under the License are
  * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
  * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
- * Please see the License for the specific language governing rights and
- * limitations under the License.
+ * FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT.  Please see the
+ * License for the specific language governing rights and limitations
+ * under the License."
  * 
  * @APPLE_LICENSE_HEADER_END@
  */
@@ -103,7 +102,7 @@ ypproc_null_2_svc(argp, rqstp)
 {
 	static char *result;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 
 	YPLOG("null_2: caller=[%s].%d, auth_ok=%s",
 	      inet_ntoa(caller->sin_addr), ntohs(caller->sin_port), TORF(ok));
@@ -125,7 +124,7 @@ ypproc_domain_2_svc(argp, rqstp)
 {
 	static bool_t result; /* is domain_served? */
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	static char domain_path[MAXPATHLEN];
 	struct stat finfo;
 
@@ -155,7 +154,7 @@ ypproc_domain_nonack_2_svc(argp, rqstp)
 {
 	static bool_t result; /* is domain served? */
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	static char domain_path[MAXPATHLEN];
 	struct stat finfo;
 
@@ -190,7 +189,7 @@ ypproc_match_2_svc(argp, rqstp)
 {
 	static ypresp_val res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure = ypdb_secure(argp->domain,argp->map);
 
 	if (strchr(argp->domain, '/') || strchr(argp->map, '/'))
@@ -227,7 +226,7 @@ ypproc_first_2_svc(argp, rqstp)
 {
 	static ypresp_key_val res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure = ypdb_secure(argp->domain,argp->map);
 
 	if (strchr(argp->domain, '/') || strchr(argp->map, '/'))
@@ -263,7 +262,7 @@ ypproc_next_2_svc(argp, rqstp)
 {
 	static ypresp_key_val res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure = ypdb_secure(argp->domain,argp->map);
 
 	if (strchr(argp->domain, '/') || strchr(argp->map, '/'))
@@ -300,7 +299,7 @@ ypproc_xfr_2_svc(argp, rqstp)
 {
 	static ypresp_xfr res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	pid_t	pid;
 	char	tid[11];
 	char	prog[11];
@@ -352,7 +351,7 @@ ypproc_clear_2_svc(argp, rqstp)
 {
 	static char *res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 
 	YPLOG( "clear_2: caller=[%s].%d, auth_ok=%s, opt=%s",
 	  inet_ntoa(caller->sin_addr), ntohs(caller->sin_port), TORF(ok),
@@ -388,7 +387,7 @@ ypproc_all_2_svc(argp, rqstp)
 	static ypresp_all res;
 	pid_t pid;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure = ypdb_secure(argp->domain,argp->map);
 
 	if (strchr(argp->domain, '/') || strchr(argp->map, '/'))
@@ -440,7 +439,7 @@ ypproc_master_2_svc(argp, rqstp)
 	static ypresp_master res;
 	static peername nopeer = "";
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure = ypdb_secure(argp->domain,argp->map);
 
 	if (strchr(argp->domain, '/') || strchr(argp->map, '/'))
@@ -491,7 +490,7 @@ ypproc_order_2_svc(argp, rqstp)
 {
 	static ypresp_order res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure = ypdb_secure(argp->domain,argp->map);
 
 	if (strchr(argp->domain, '/'))
@@ -529,7 +528,7 @@ ypproc_maplist_2_svc(argp, rqstp)
 {
 	static ypresp_maplist res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	static char domain_path[MAXPATHLEN];
 	struct stat finfo;
 	DIR   *dirp = NULL;
@@ -620,7 +619,7 @@ ypproc_null_1_svc(argp, rqstp)
 {
 	static char *result;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 
 	YPLOG("null_1: caller=[%s].%d, auth_ok=%s",
 	      inet_ntoa(caller->sin_addr), ntohs(caller->sin_port), TORF(ok));
@@ -642,7 +641,7 @@ ypproc_domain_1_svc(argp, rqstp)
 {
 	static bool_t result; /* is domain_served? */
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	static char domain_path[MAXPATHLEN];
 	struct stat finfo;
 
@@ -672,7 +671,7 @@ ypproc_domain_nonack_1_svc(argp, rqstp)
 {
 	static bool_t result; /* is domain served? */
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	static char domain_path[MAXPATHLEN];
 	struct stat finfo;
 
@@ -707,7 +706,7 @@ ypproc_match_1_svc(argp, rqstp)
 {
 	static ypresponse res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure;
 
 	if (strchr(argp->ypmatch_req_domain, '/') ||
@@ -762,7 +761,7 @@ ypproc_first_1_svc(argp, rqstp)
 {
 	static ypresponse res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure;
 
 	if (strchr(argp->ypfirst_req_domain, '/') ||
@@ -814,7 +813,7 @@ ypproc_next_1_svc(argp, rqstp)
 {
 	static ypresponse res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure;
 
 	if (strchr(argp->ypnext_req_domain, '/') ||
@@ -871,7 +870,7 @@ ypproc_poll_1_svc(argp, rqstp)
 	ypresp_order order;
 	ypresp_master master;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure;
 
 	if (strchr(argp->yppoll_req_domain, '/') ||
@@ -921,7 +920,7 @@ ypproc_push_1_svc(argp, rqstp)
         struct svc_req *rqstp;
 {
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure;
 	pid_t	pid;
 	char	yppush_proc[] = YPPUSH_PROC;
@@ -969,7 +968,7 @@ ypproc_pull_1_svc(argp, rqstp)
         struct svc_req *rqstp;
 {
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure;
 	pid_t	pid;
 	char	ypxfr_proc[] = YPXFR_PROC;
@@ -1018,7 +1017,7 @@ ypproc_get_1_svc(argp, rqstp)
 {
 	char *res;
 	struct sockaddr_in *caller = svc_getcaller(rqstp->rq_xprt);
-	int ok = acl_check_host(&caller->sin_addr);
+	int ok = yp_acl_check_host(&caller->sin_addr);
 	int secure;
 	pid_t	pid;
 	char	ypxfr_proc[] = YPXFR_PROC;

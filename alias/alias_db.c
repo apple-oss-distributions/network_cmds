@@ -3,22 +3,19 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
+ * The contents of this file constitute Original Code as defined in and
+ * are subject to the Apple Public Source License Version 1.1 (the
+ * "License").  You may not use this file except in compliance with the
+ * License.  Please obtain a copy of the License at
+ * http://www.apple.com/publicsource and read it before using this file.
  * 
- * This file contains Original Code and/or Modifications of Original Code
- * as defined in and that are subject to the Apple Public Source License
- * Version 2.0 (the 'License'). You may not use this file except in
- * compliance with the License. Please obtain a copy of the License at
- * http://www.opensource.apple.com/apsl/ and read it before using this
- * file.
- * 
- * The Original Code and all software distributed under the License are
- * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+ * This Original Code and all software distributed under the License are
+ * distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
  * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
- * Please see the License for the specific language governing rights and
- * limitations under the License.
+ * FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT.  Please see the
+ * License for the specific language governing rights and limitations
+ * under the License.
  * 
  * @APPLE_LICENSE_HEADER_END@
  */
@@ -625,7 +622,6 @@ GetNewPort(struct alias_link *link, int alias_port_param)
    When this parameter is GET_ALIAS_PORT, it indicates to get a randomly
    selected port number.
 */
- 
     if (alias_port_param == GET_ALIAS_PORT)
     {
         /*
@@ -711,7 +707,6 @@ GetNewPort(struct alias_link *link, int alias_port_param)
         port_sys += ALIAS_PORT_BASE;
         port_net = htons(port_sys);
     }
-
 #ifdef DEBUG
     fprintf(stderr, "PacketAlias/GetnewPort(): ");
     fprintf(stderr, "could not find free port\n");
@@ -1115,7 +1110,6 @@ AddLink(struct in_addr  src_addr,
             free(link);
             return(NULL);
         }
-
     /* Link-type dependent initialization */
         switch(link_type)
         {
@@ -1940,6 +1934,103 @@ FindAliasAddress(struct in_addr original_addr)
         else
             return link->alias_addr;
     }
+}
+
+/* FindAliasPortOut */
+/* external routine for NatPortMap */
+/* return alias port for the src_addr,dst_addr,src_port and proto */
+/* if one doesn't existed, create a mapping with providing pub_port if it's not 0 */
+/* delete mapping if addmapping is not true */
+int
+FindAliasPortOut(struct in_addr src_addr, struct in_addr dst_addr, u_short src_port, u_short pub_port, u_char proto, int lifetime, char addmapping)
+{
+    u_int i;
+    struct alias_link *link;
+    int link_type;
+
+    switch (proto)
+    {
+    case IPPROTO_UDP:
+        link_type = LINK_UDP;
+        break;
+    case IPPROTO_TCP:
+        link_type = LINK_TCP;
+        break;
+    default:
+        return NULL;
+        break;
+    }
+
+#ifdef DEBUG
+	{
+		int icount;
+		
+		printf("PORTMAP::srcaddr = 0x%x.%d, dstaddr = 0x%x.%d link_type = %d, lifetime = %d\n", 
+			src_addr.s_addr, src_port, dst_addr.s_addr, pub_port, link_type, lifetime);
+			
+		for (i=0; i<LINK_TABLE_OUT_SIZE; i++)
+		{
+			link = LIST_FIRST(&linkTableOut[i]);
+			while (link != NULL)
+			{
+				struct alias_link *link_next;
+
+				printf("PORTMAP:: linksrcaddr = 0x%x.%d, linkdstaddr = 0x%x.%d, aliasaddr=0x%x.%d, linktype = %d\n", 
+					link->src_addr.s_addr,link->src_port,link->dst_addr.s_addr,link->dst_port, link->alias_addr.s_addr,link->alias_port, 
+					link->link_type);
+
+				link_next = LIST_NEXT(link, list_out);
+				icount++;
+				link = link_next;
+			}
+		}
+		
+	}
+#endif
+
+    i = StartPointOut(src_addr, dst_addr, src_port, 0, link_type);
+#ifdef DEBUG
+	printf("PORTMAP::StartPointOut returns %d\n", i);
+#endif
+    LIST_FOREACH(link, &linkTableOut[i], list_out)
+	{
+		if (link->src_addr.s_addr == src_addr.s_addr &&
+			link->dst_addr.s_addr == dst_addr.s_addr &&
+			link->src_port == src_port && link->link_type == link_type)
+			break;
+	}
+
+	if ( link == NULL && addmapping)
+	{   
+        struct in_addr alias_addr;
+#ifdef DEBUG
+		printf("PORTMAP:: cannot find mapping, adding mapping private port =%d, public port = %d\n",src_port, pub_port);	
+#endif
+		/* address/port in not in list, create new mapping */
+		
+        alias_addr = FindAliasAddress(src_addr);
+		/* create new mapping */
+		if ( !pub_port )
+			pub_port = GET_ALIAS_PORT;
+        link = AddLink(src_addr, dst_addr, alias_addr,
+                       src_port, 0, pub_port,
+                       link_type);
+		if ( link != NULL )
+			/* link was create, set new lifetime */
+			SetExpire(link, lifetime);
+	}
+	if ( link )
+	{
+		if ( addmapping )
+			return( GetAliasPort(link));
+		else
+		{
+			SetExpire(link, 0);				/* delete mapping */
+			return 0;
+		}	
+	}
+	
+	return -1;
 }
 
 

@@ -56,6 +56,7 @@
 #endif
 #ifdef HAVE_OPENSSL_X509_H
 #include <openssl/x509.h>
+#include <openssl/x509v3.h>
 #include <openssl/x509_vfy.h>
 #endif
 #include <openssl/bn.h>
@@ -99,8 +100,8 @@
  */
 
 #ifdef HAVE_SIGNING_C
-static int cb_check_cert __P((int, X509_STORE_CTX *));
-static void eay_setgentype __P((char *, int *));
+static int cb_check_cert_local __P((int, X509_STORE_CTX *));
+static int cb_check_cert_remote __P((int, X509_STORE_CTX *));
 static X509 *mem2x509 __P((vchar_t *));
 #endif
 
@@ -209,7 +210,7 @@ eay_cmp_asn1dn(n1, n2)
 
 	i = X509_NAME_cmp(a, b);
 
-    end:
+ end:
 	if (a)
 		X509_NAME_free(a);
 	if (b)
@@ -221,9 +222,10 @@ eay_cmp_asn1dn(n1, n2)
  * this functions is derived from apps/verify.c in OpenSSL0.9.5
  */
 int
-eay_check_x509cert(cert, CApath)
+eay_check_x509cert(cert, CApath, local)
 	vchar_t *cert;
 	char *CApath;
+	int local;
 {
 	X509_STORE *cert_ctx = NULL;
 	X509_LOOKUP *lookup = NULL;
@@ -245,7 +247,11 @@ eay_check_x509cert(cert, CApath)
 	cert_ctx = X509_STORE_new();
 	if (cert_ctx == NULL)
 		goto end;
-	X509_STORE_set_verify_cb_func(cert_ctx, cb_check_cert);
+	
+	if (local)
+		X509_STORE_set_verify_cb_func(cert_ctx, cb_check_cert_local);
+	else
+		X509_STORE_set_verify_cb_func(cert_ctx, cb_check_cert_remote);
 
 	lookup = X509_STORE_add_lookup(cert_ctx, X509_LOOKUP_file());
 	if (lookup == NULL)
@@ -272,6 +278,12 @@ eay_check_x509cert(cert, CApath)
 	if (csc == NULL)
 		goto end;
 	X509_STORE_CTX_init(csc, cert_ctx, x509, NULL);
+
+#if OPENSSL_VERSION_NUMBER >= 0x00907000L
+	X509_STORE_CTX_set_flags(csc, X509_V_FLAG_CRL_CHECK);
+	X509_STORE_CTX_set_flags(csc, X509_V_FLAG_CRL_CHECK_ALL);
+#endif
+
 	error = X509_verify_cert(csc);
 	X509_STORE_CTX_cleanup(csc);
 #else
@@ -286,7 +298,7 @@ eay_check_x509cert(cert, CApath)
 	 */
 	error = error ? 0 : -1;
 
-end:
+ end:
 	if (error)
 		printf("%s\n", eay_strerror());
 	if (cert_ctx != NULL)
@@ -299,10 +311,13 @@ end:
 
 /*
  * callback function for verifing certificate.
- * this function is derived from cb() in openssl/apps/s_server.c
+ * Derived from cb() in openssl/apps/s_server.c
+ *
+ * This one is called for certificates obtained from
+ * 'peers_certfile' directive.
  */
 static int
-cb_check_cert(ok, ctx)
+cb_check_cert_local(ok, ctx)
 	int ok;
 	X509_STORE_CTX *ctx;
 {
@@ -311,42 +326,90 @@ cb_check_cert(ok, ctx)
 
 	if (!ok) {
 		X509_NAME_oneline(
-				X509_get_subject_name(ctx->current_cert),
+			X509_get_subject_name(ctx->current_cert),
 				buf,
 				256);
-		/*
-		 * since we are just checking the certificates, it is
-		 * ok if they are self signed. But we should still warn
-		 * the user.
- 		 */
-		switch (ctx->error) {
-		case X509_V_ERR_CERT_HAS_EXPIRED:
-		case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
+			/*
+			 * since we are just checking the certificates, it is
+			 * ok if they are self signed. But we should still warn
+			 * the user.
+			 */
+			switch (ctx->error) {
+			case X509_V_ERR_CERT_HAS_EXPIRED:
+			case X509_V_ERR_DEPTH_ZERO_SELF_SIGNED_CERT:
 #if OPENSSL_VERSION_NUMBER >= 0x00905100L
-		case X509_V_ERR_INVALID_CA:
-		case X509_V_ERR_PATH_LENGTH_EXCEEDED:
-		case X509_V_ERR_INVALID_PURPOSE:
+			case X509_V_ERR_INVALID_PURPOSE:
+	       	case X509_V_ERR_UNABLE_TO_GET_CRL:
 #endif
-			ok = 1;
-			log_tag = LLV_WARNING;
-			break;
-		default:
-			log_tag = LLV_ERROR;
-		}
+         			ok = 1;
+		        	log_tag = LLV_WARNING;
+			        break;
+			
+			default:
+			        log_tag = LLV_ERROR;
+		    }
+		        
+		        
 #ifndef EAYDEBUG
-		plog(log_tag, LOCATION, NULL,
-			"%s(%d) at depth:%d SubjectName:%s\n",
-			X509_verify_cert_error_string(ctx->error),
-			ctx->error,
-			ctx->error_depth,
-			buf);
+			plog(log_tag, LOCATION, NULL, 
+			     "%s(%d) at depth:%d SubjectName:%s\n",
+			     X509_verify_cert_error_string(ctx->error),
+			     ctx->error,
+			     ctx->error_depth,
+			     buf);
 #else
-		printf("%d: %s(%d) at depth:%d SubjectName:%s\n",
-			log_tag,
-			X509_verify_cert_error_string(ctx->error),
-			ctx->error,
-			ctx->error_depth,
-			buf);
+			printf("%d: %s(%d) at depth:%d SubjectName:%s\n",
+				log_tag,
+				X509_verify_cert_error_string(ctx->error),
+				ctx->error,
+				ctx->error_depth,
+				buf);
+#endif
+ 	    }	    
+	    ERR_clear_error();
+
+	    return ok;
+}
+
+/*
+ * Similar to cb_check_cert_local() but this one is called
+ * for certificates obtained from the IKE payload.
+ */
+static int
+cb_check_cert_remote(ok, ctx)
+	int ok;
+    X509_STORE_CTX *ctx; 
+{
+	char buf[256];
+	int log_tag;
+
+	if (!ok) {
+		X509_NAME_oneline(
+			X509_get_subject_name(ctx->current_cert),
+			buf,
+			256);
+		switch (ctx->error) {
+			case X509_V_ERR_UNABLE_TO_GET_CRL:
+			        ok = 1;
+				log_tag = LLV_WARNING;
+				break;
+			default:
+				log_tag = LLV_ERROR;
+			}
+#ifndef EAYDEBUG
+			plog(log_tag, LOCATION, NULL,
+			     "%s(%d) at depth:%d SubjectName:%s\n",
+			     X509_verify_cert_error_string(ctx->error),
+			     ctx->error,
+			     ctx->error_depth,
+			     buf);
+#else
+			printf("%d: %s(%d) at depth:%d SubjectName:%s\n",
+			       log_tag,
+			       X509_verify_cert_error_string(ctx->error),
+			       ctx->error,
+			       ctx->error_depth,
+			       buf);
 #endif
 	}
 	ERR_clear_error();
@@ -381,7 +444,7 @@ eay_get_x509asn1subjectname(cert)
 	/* get the name */
 	bp = name->v;
 	len = i2d_X509_NAME(x509->cert_info->subject, &bp);
-
+	
 	error = 0;
 
    end:
@@ -403,74 +466,98 @@ eay_get_x509asn1subjectname(cert)
 }
 
 /*
- * get the subjectAltName from X509 certificate.
- * the name is terminated by '\0'.
+ * Get the common name from a cert
  */
-#include <openssl/x509v3.h>
+#define EAY_MAX_CN_LEN 256
+vchar_t *
+eay_get_x509_common_name(cert)
+	vchar_t *cert;
+{
+	X509 *x509 = NULL;	
+	X509_NAME *name;
+	vchar_t *commonName = NULL;
+	
+	commonName = vmalloc(EAY_MAX_CN_LEN);
+	if (commonName == NULL) {
+		plog(LLV_ERROR, LOCATION, NULL, "no memory\n");
+		return NULL;
+	}
+	
+	x509 = mem2x509(cert);
+	if (x509 == NULL) {
+		vfree(commonName);
+		return NULL;
+	}
+
+	name = X509_get_subject_name(x509);
+	X509_NAME_get_text_by_NID(name, NID_commonName, commonName->v, EAY_MAX_CN_LEN);
+	
+	commonName->l = strlen(commonName->v);
+	
+	if (x509)
+		X509_free(x509);
+	return commonName;
+}
+
+/*
+ * get the subjectAltName from X509 certificate.
+ * the name must be terminated by '\0'.
+ */
 int
-eay_get_x509subjectaltname(cert, altname, type, pos)
+eay_get_x509subjectaltname(cert, altname, type, pos, len)
 	vchar_t *cert;
 	char **altname;
 	int *type;
 	int pos;
+	int *len;
 {
 	X509 *x509 = NULL;
-	X509_EXTENSION *ext;
-	X509V3_EXT_METHOD *method = NULL;
-	STACK_OF(GENERAL_NAME) *name;
-	CONF_VALUE *cval = NULL;
-	STACK_OF(CONF_VALUE) *nval = NULL;
-	u_char *bp;
-	int i, len;
+	int i;
+	GENERAL_NAMES 	*gens;
+	GENERAL_NAME 	*gen;
 	int error = -1;
 
 	*altname = NULL;
 	*type = GENT_OTHERNAME;
 
-	bp = cert->v;
-
 	x509 = mem2x509(cert);
 	if (x509 == NULL)
 		goto end;
 
-	i = X509_get_ext_by_NID(x509, NID_subject_alt_name, -1);
-	if (i < 0)
-		goto end;
-	ext = X509_get_ext(x509, i);
-	method = X509V3_EXT_get(ext);
-	if(!method)
-		goto end;
-	
-	bp = ext->value->data;
-	name = method->d2i(NULL, &bp, ext->value->length);
-	if(!name)
+	gens = X509_get_ext_d2i(x509, NID_subject_alt_name, NULL, NULL);
+	if (gens == NULL)
 		goto end;
 
-	nval = method->i2v(method, name, NULL);
-	method->ext_free(name);
-	name = NULL;
-	if(!nval)
-		goto end;
-
-	for (i = 0; i < sk_CONF_VALUE_num(nval); i++) {
-		/* skip the name */
+	for (i = 0; i < sk_GENERAL_NAME_num(gens); i++) {
 		if (i + 1 != pos)
 			continue;
-		cval = sk_CONF_VALUE_value(nval, i);
-		len = strlen(cval->value) + 1;	/* '\0' included */
-		*altname = racoon_malloc(len);
-		if (!*altname) {
-			sk_CONF_VALUE_pop_free(nval, X509V3_conf_free);
-			goto end;
-		}
-		strlcpy(*altname, cval->value, len);
-
-		/* set type of the name */
-		eay_setgentype(cval->name, type);
+		break;
+	}
+	
+	/* there is no data at "pos" */
+	if (i == sk_GENERAL_NAME_num(gens))
+		goto end;
+		
+	gen = sk_GENERAL_NAME_value(gens, i);
+	
+	/* make sure the data is terminated by '\0'. */
+	if (gen->d.ia5->data[gen->d.ia5->length] != '\0') {
+#ifndef EAYDEBUG
+		plog(LLV_ERROR, LOCATION, NULL,
+			"data is not terminated by '\0'.");
+#endif
+		hexdump(gen->d.ia5->data, gen->d.ia5->length + 1);
+		goto end;
 	}
 
-	sk_CONF_VALUE_pop_free(nval, X509V3_conf_free);
-
+	*len = gen->d.ia5->length + 1;
+	*altname = racoon_malloc(*len);
+	if (!*altname)
+		goto end;
+		
+	strlcpy(*altname, gen->d.ia5->data, *len);
+	*type = gen->type;
+	
 	error = 0;
 
    end:
@@ -491,26 +578,6 @@ eay_get_x509subjectaltname(cert, altname, type, pos)
 	return error;
 }
 
-static void
-eay_setgentype(name, type)
-	char *name;
-	int *type;
-{
-	/* XXX It's needed effective code */
-	if(!memcmp(name, "email", strlen("email"))) {
-		*type = GENT_EMAIL;
-	} else if(!memcmp(name, "URI", strlen("URI"))) {
-		*type = GENT_URI;
-	} else if(!memcmp(name, "DNS", strlen("DNS"))) {
-		*type = GENT_DNS;
-	} else if(!memcmp(name, "RID", strlen("RID"))) {
-		*type = GENT_RID;
-	} else if(!memcmp(name, "IP", strlen("IP"))) {
-		*type = GENT_IPADD;
-	} else {
-		*type = GENT_OTHERNAME;
-	}
-}
 
 /*
  * decode a X509 certificate and make a readable text terminated '\n'.
@@ -686,7 +753,7 @@ eay_check_x509sign(source, sig, cert)
 {
 	X509 *x509;
 	u_char *bp;
-	vchar_t pubkey;
+	EVP_PKEY *evp;
 
 	bp = cert->v;
 
@@ -698,10 +765,15 @@ eay_check_x509sign(source, sig, cert)
 		return -1;
 	}
 
-	pubkey.v = x509->cert_info->key->public_key->data;
-	pubkey.l = x509->cert_info->key->public_key->length;
-	
-	return eay_rsa_verify(source, sig, &pubkey);
+	evp = X509_get_pubkey(x509);
+	if (!evp) {
+#ifndef EAYDEBUG
+	  plog(LLV_ERROR, LOCATION, NULL, "X509_get_pubkey: %s\n", eay_strerror());
+#endif
+	  return -1;
+	}
+
+	return eay_rsa_verify(source, sig, evp);
 }
 
 /*
@@ -902,21 +974,14 @@ eay_rsa_sign(src, privkey)
 }
 
 int
-eay_rsa_verify(src, sig, pubkey)
-	vchar_t *src, *sig, *pubkey;
-{
+eay_rsa_verify(src, sig, evp)
+        vchar_t *src, *sig;
 	EVP_PKEY *evp;
-	u_char *bp = pubkey->v;
+{
 	vchar_t *xbuf = NULL;
 	int pad = RSA_PKCS1_PADDING;
 	int len = 0;
 	int error;
-
-	evp = d2i_PUBKEY(NULL, &bp, pubkey->l);
-	if (evp == NULL)
-#ifndef EAYDEBUG
-		return NULL;
-#endif
 
 	len = RSA_size(evp->pkey.rsa);
 
