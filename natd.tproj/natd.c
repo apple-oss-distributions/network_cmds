@@ -3,19 +3,22 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * The contents of this file constitute Original Code as defined in and
- * are subject to the Apple Public Source License Version 1.1 (the
- * "License").  You may not use this file except in compliance with the
- * License.  Please obtain a copy of the License at
- * http://www.apple.com/publicsource and read it before using this file.
+ * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
  * 
- * This Original Code and all software distributed under the License are
- * distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+ * This file contains Original Code and/or Modifications of Original Code
+ * as defined in and that are subject to the Apple Public Source License
+ * Version 2.0 (the 'License'). You may not use this file except in
+ * compliance with the License. Please obtain a copy of the License at
+ * http://www.opensource.apple.com/apsl/ and read it before using this
+ * file.
+ * 
+ * The Original Code and all software distributed under the License are
+ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
  * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT.  Please see the
- * License for the specific language governing rights and limitations
- * under the License.
+ * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+ * Please see the License for the specific language governing rights and
+ * limitations under the License.
  * 
  * @APPLE_LICENSE_HEADER_END@
  */
@@ -136,6 +139,7 @@ static	u_short			outPort;
 static	u_short			inOutPort;
 static	struct in_addr		aliasAddr;
 static 	int			dynamicMode;
+static  int			clampMSS;
 static  int			ifMTU;
 static	int			aliasOverhead;
 static 	int			icmpSock;
@@ -199,9 +203,6 @@ int main (int argc, char** argv)
 	if (aliasAddr.s_addr == INADDR_NONE && ifName == NULL)
 		errx (1, "aliasing address not given");
 
-	if (aliasAddr.s_addr != INADDR_NONE && ifName != NULL)
-		errx (1, "both alias address and interface "
-			 "name are not allowed");
 /*
  * Check that valid port number is known.
  */
@@ -784,6 +785,8 @@ SetAliasAddressFromIfName(const char *ifn)
 			    strncmp(ifn, sdl->sdl_data, sdl->sdl_nlen) == 0) {
 				ifIndex = ifm->ifm_index;
 				ifMTU = ifm->ifm_data.ifi_mtu;
+				if (clampMSS)
+					PacketAliasClampMSS(ifMTU - sizeof(struct tcphdr) - sizeof(struct ip));
 				break;
 			}
 		}
@@ -793,6 +796,7 @@ SetAliasAddressFromIfName(const char *ifn)
 /*
  * Get interface address.
  */
+	if (aliasAddr.s_addr == INADDR_NONE) {
 	sin = NULL;
 	while (next < lim) {
 		ifam = (struct ifa_msghdr *)next;
@@ -828,6 +832,7 @@ SetAliasAddressFromIfName(const char *ifn)
 	PacketAliasSetAddress(sin->sin_addr);
 	syslog(LOG_INFO, "Aliasing to %s, mtu %d bytes",
 	       inet_ntoa(sin->sin_addr), ifMTU);
+	}
 
 	free(buf);
 }
@@ -888,6 +893,7 @@ enum Option {
 	RedirectAddress,
 	ConfigFile,
 	DynamicMode,
+	ClampMSS,
 	ProxyRule,
  	LogDenied,
  	LogFacility,
@@ -995,6 +1001,14 @@ static struct OptionInfo optionTable[] = {
 		"[yes|no]",
 		"dynamic mode, automatically detect interface address changes",
 		"dynamic",
+		NULL },
+	
+	{ ClampMSS,
+		0,
+		YesNo,
+		"[yes|no]",
+		"enable TCP MSS clamping",
+		"clamp_mss",
 		NULL },
 	
 	{ InPort,
@@ -1217,6 +1231,10 @@ static void ParseOption (const char* option, const char* parms)
 
 	case DynamicMode:
 		dynamicMode = yesNoValue;
+		break;
+
+	case ClampMSS:
+		clampMSS = yesNoValue;
 		break;
 
 	case InPort:

@@ -3,19 +3,22 @@
  *
  * @APPLE_LICENSE_HEADER_START@
  * 
- * The contents of this file constitute Original Code as defined in and
- * are subject to the Apple Public Source License Version 1.1 (the
- * "License").  You may not use this file except in compliance with the
- * License.  Please obtain a copy of the License at
- * http://www.apple.com/publicsource and read it before using this file.
+ * Copyright (c) 1999-2003 Apple Computer, Inc.  All Rights Reserved.
  * 
- * This Original Code and all software distributed under the License are
- * distributed on an "AS IS" basis, WITHOUT WARRANTY OF ANY KIND, EITHER
+ * This file contains Original Code and/or Modifications of Original Code
+ * as defined in and that are subject to the Apple Public Source License
+ * Version 2.0 (the 'License'). You may not use this file except in
+ * compliance with the License. Please obtain a copy of the License at
+ * http://www.opensource.apple.com/apsl/ and read it before using this
+ * file.
+ * 
+ * The Original Code and all software distributed under the License are
+ * distributed on an 'AS IS' basis, WITHOUT WARRANTY OF ANY KIND, EITHER
  * EXPRESS OR IMPLIED, AND APPLE HEREBY DISCLAIMS ALL SUCH WARRANTIES,
  * INCLUDING WITHOUT LIMITATION, ANY WARRANTIES OF MERCHANTABILITY,
- * FITNESS FOR A PARTICULAR PURPOSE OR NON-INFRINGEMENT.  Please see the
- * License for the specific language governing rights and limitations
- * under the License.
+ * FITNESS FOR A PARTICULAR PURPOSE, QUIET ENJOYMENT OR NON-INFRINGEMENT.
+ * Please see the License for the specific language governing rights and
+ * limitations under the License.
  * 
  * @APPLE_LICENSE_HEADER_END@
  */
@@ -164,6 +167,9 @@
     TcpMonitorIn()  -- These routines monitor TCP connections, and
     TcpMonitorOut()    delete a link when a connection is closed.
 
+	DoMSSClamp()    -- Clamps the MSS of the given TCP header to the
+                       value in packetAliasMSS.
+
 These routines look for SYN, FIN and RST flags to determine when TCP
 connections open and close.  When a TCP connection closes, the data
 structure containing packet aliasing information is deleted after
@@ -175,6 +181,55 @@ static void TcpMonitorIn(struct ip *, struct alias_link *);
 
 static void TcpMonitorOut(struct ip *, struct alias_link *);
 
+
+static u_short packetAliasMSS;
+
+void PacketAliasClampMSS(u_short mss)
+{
+    packetAliasMSS = mss;
+}
+
+static void DoMSSClamp(struct tcphdr *tc)
+{
+    u_char *option    = (u_char *) tc + sizeof(*tc);
+    u_char *optionEnd = option + ((tc->th_off << 2) - sizeof(*tc));
+
+    while (optionEnd > option)
+    {
+        switch (option[0])
+        {
+            case TCPOPT_EOL:
+                option = optionEnd;
+                break;
+
+            case TCPOPT_NOP:
+                ++option;
+                break;
+
+            case TCPOPT_MAXSEG:
+                if (option[1] == 4)
+                {
+                    u_short *mssPtr = (u_short *) option + 1;
+                    u_short mssVal  = ntohs(*mssPtr);
+
+                    if (packetAliasMSS < mssVal)
+                    {
+                        int accumulate = mssVal;
+                        accumulate -= packetAliasMSS;
+                        *mssPtr = htons(packetAliasMSS);
+                        ADJUST_CHECKSUM(accumulate, tc->th_sum);
+                    }
+
+                    option = optionEnd;
+                }
+                break;
+
+            default:
+                option += option[1];
+                break;
+        }
+    }
+}
 
 static void
 TcpMonitorIn(struct ip *pip, struct alias_link *link)
@@ -189,7 +244,12 @@ TcpMonitorIn(struct ip *pip, struct alias_link *link)
             if (tc->th_flags & TH_RST)
                 SetStateIn(link, ALIAS_TCP_STATE_DISCONNECTED);
             else if (tc->th_flags & TH_SYN)
+            {
                 SetStateIn(link, ALIAS_TCP_STATE_CONNECTED);
+
+                if (packetAliasMSS)
+                    DoMSSClamp(tc);
+            }
             break;
         case ALIAS_TCP_STATE_CONNECTED:
             if (tc->th_flags & (TH_FIN | TH_RST))
@@ -211,7 +271,12 @@ TcpMonitorOut(struct ip *pip, struct alias_link *link)
             if (tc->th_flags & TH_RST)
                 SetStateOut(link, ALIAS_TCP_STATE_DISCONNECTED);
             else if (tc->th_flags & TH_SYN)
+            {
                 SetStateOut(link, ALIAS_TCP_STATE_CONNECTED);
+
+                if (packetAliasMSS)
+                    DoMSSClamp(tc);
+            }
             break;
         case ALIAS_TCP_STATE_CONNECTED:
             if (tc->th_flags & (TH_FIN | TH_RST))
