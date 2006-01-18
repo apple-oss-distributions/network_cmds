@@ -2099,14 +2099,14 @@ oakley_skeyid(iph1)
 
 	/* SKEYID */
 	switch(iph1->approval->authmethod) {
-	case OAKLEY_ATTR_AUTH_METHOD_PSKEY:	
-		if (iph1->nonce_p == NULL) {
-			plog(LLV_ERROR, LOCATION, NULL,
-				"no nonce payload received from peer.\n");
-			goto end;
-		}
-        /* if we have a preshared key defined, just use it */
-    	if (iph1->rmconf->shared_secret) {
+	case OAKLEY_ATTR_AUTH_METHOD_PSKEY:
+				if (iph1->nonce_p == NULL) {
+					plog(LLV_ERROR, LOCATION, NULL,
+						"no nonce payload received from peer.\n");
+					goto end;
+				}
+                /* if we have a preshared key defined, just use it */
+                if (iph1->rmconf->shared_secret) {
 
 			switch (iph1->rmconf->secrettype) {
 				case SECRETTYPE_KEY:

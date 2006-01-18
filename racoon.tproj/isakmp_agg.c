@@ -420,7 +420,11 @@ agg_i2recv(iph1, msg)
 	natt_select_type(iph1);
 	
 	/* payload existency check */
-	/* XXX to be checked each authentication method. */
+	if (iph1->dhpub_p == NULL || iph1->nonce_p == NULL) {
+		plog(LLV_ERROR, LOCATION, iph1->remote,
+			"required payloads missing from isakmp message.\n");
+		goto end;
+	}
 
 	/* verify identifier */
 	if (ipsecdoi_checkid1(iph1) != 0) {
@@ -705,10 +709,17 @@ agg_i2send(iph1, msg)
 
 #ifdef IKE_NAT_T
 	if (natd_type) {
-		if (iph1->local_natd)
-			p = set_isakmp_payload(p, iph1->local_natd, natd_type);
-		if (iph1->remote_natd)
-			p = set_isakmp_payload(p, iph1->remote_natd, ISAKMP_NPTYPE_NONE);
+		if ((iph1->natt_flags & NATT_TYPE_MASK) == natt_type_apple) {
+			if (iph1->local_natd)
+				p = set_isakmp_payload(p, iph1->local_natd, natd_type);
+			if (iph1->remote_natd)
+				p = set_isakmp_payload(p, iph1->remote_natd, ISAKMP_NPTYPE_NONE);
+		} else {
+			if (iph1->remote_natd)
+				p = set_isakmp_payload(p, iph1->remote_natd, natd_type);
+			if (iph1->local_natd)
+				p = set_isakmp_payload(p, iph1->local_natd, ISAKMP_NPTYPE_NONE);
+		}
 	}
 #endif
 
@@ -847,7 +858,11 @@ agg_r1recv(iph1, msg)
 	}
 
 	/* payload existency check */
-	/* XXX to be checked each authentication method. */
+	if (iph1->dhpub_p == NULL || iph1->nonce_p == NULL) {
+		plog(LLV_ERROR, LOCATION, iph1->remote,
+			"required payloads missing from isakmp message.\n");
+		goto end;
+	}
 
 	/* verify identifier */
 	if (ipsecdoi_checkid1(iph1) != 0) {
@@ -1155,10 +1170,17 @@ agg_r1send(iph1, msg)
 #ifdef IKE_NAT_T
 		if (nattvid) {
 			p = set_isakmp_payload(p, nattvid, iph1->natd_payload_type);
-			if (iph1->local_natd)
-				p = set_isakmp_payload(p, iph1->local_natd, iph1->natd_payload_type);
-			if (iph1->remote_natd)
-				p = set_isakmp_payload(p, iph1->remote_natd, ISAKMP_NPTYPE_NONE);
+			if ((iph1->natt_flags & NATT_TYPE_MASK) == natt_type_apple) {
+				if (iph1->local_natd)
+					p = set_isakmp_payload(p, iph1->local_natd, iph1->natd_payload_type);
+				if (iph1->remote_natd)
+					p = set_isakmp_payload(p, iph1->remote_natd, ISAKMP_NPTYPE_NONE);
+			} else {
+				if (iph1->remote_natd)
+					p = set_isakmp_payload(p, iph1->remote_natd, iph1->natd_payload_type);
+				if (iph1->local_natd)
+					p = set_isakmp_payload(p, iph1->local_natd, ISAKMP_NPTYPE_NONE);
+			}
 		}
 #endif
 		break;
@@ -1242,10 +1264,17 @@ agg_r1send(iph1, msg)
 #ifdef IKE_NAT_T
 	if (nattvid) {
 		p = set_isakmp_payload(p, nattvid, iph1->natd_payload_type);
-		if (iph1->local_natd)
-			p = set_isakmp_payload(p, iph1->local_natd, iph1->natd_payload_type);
-		if (iph1->remote_natd)
-			p = set_isakmp_payload(p, iph1->remote_natd, ISAKMP_NPTYPE_NONE);
+		if ((iph1->natt_flags & NATT_TYPE_MASK) == natt_type_apple) {
+			if (iph1->local_natd)
+				p = set_isakmp_payload(p, iph1->local_natd, iph1->natd_payload_type);
+			if (iph1->remote_natd)
+				p = set_isakmp_payload(p, iph1->remote_natd, ISAKMP_NPTYPE_NONE);
+		} else {
+			if (iph1->remote_natd)
+				p = set_isakmp_payload(p, iph1->remote_natd, iph1->natd_payload_type);
+			if (iph1->local_natd)
+				p = set_isakmp_payload(p, iph1->local_natd, ISAKMP_NPTYPE_NONE);
+		}		
 	}
 #endif
 
