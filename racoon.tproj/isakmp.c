@@ -1357,7 +1357,7 @@ isakmp_parsewoh(np0, gen, len)
 
 		p->type = np;
 		p->len = ntohs(gen->len);
-		if (p->len == 0 || p->len > tlen) {
+		if (p->len < sizeof(struct isakmp_gen) || p->len > tlen) {
 			plog(LLV_DEBUG, LOCATION, NULL,
 				"invalid length of payload\n");
 			vfree(result);
