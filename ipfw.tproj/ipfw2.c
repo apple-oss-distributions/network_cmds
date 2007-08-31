@@ -1277,11 +1277,11 @@ show_ipfw(struct ip_fw *rule, int pcwidth, int bcwidth)
 				break;
 
 			case O_TCPACK:
-				printf(" tcpack %ld", ntohl(cmd32->d[0]));
+				printf(" tcpack %d", ntohl(cmd32->d[0]));
 				break;
 
 			case O_TCPSEQ:
-				printf(" tcpseq %ld", ntohl(cmd32->d[0]));
+				printf(" tcpseq %d", ntohl(cmd32->d[0]));
 				break;
 
 			case O_UID:
@@ -1639,7 +1639,7 @@ sets_handler(int ac, char *av[])
 		masks[0] = (4 << 24) | (new_set << 16) | (rulenum);
 		
 		bzero(&rule, sizeof(rule));
-		rule.rulenum = masks[0];
+		rule.set_masks[0] = masks[0];
 		
 		i = do_cmd(IP_FW_DEL, &rule, sizeof(rule));
 	} else if (!strncmp(*av, "move", strlen(*av))) {
@@ -1662,7 +1662,7 @@ sets_handler(int ac, char *av[])
 		masks[0] = (cmd << 24) | (new_set << 16) | (rulenum);
 		
 		bzero(&rule, sizeof(rule));
-		rule.rulenum = masks[0];
+		rule.set_masks[0] = masks[0];
 		
 		i = do_cmd(IP_FW_DEL, &rule, sizeof(rule));
 	} else if (!strncmp(*av, "disable", strlen(*av)) ||
@@ -2196,7 +2196,12 @@ delete(int ac, char *av[])
 			}
 		} else {
 			bzero(&rule, sizeof(rule));
-			rule.rulenum =  (i & 0xffff) | (do_set << 24);
+			if (do_set) {
+				rule.set_masks[0] = (i & 0xffff) | (do_set << 24);
+			}
+			else {
+				rule.rulenum = i;
+			}
 			i = do_cmd(IP_FW_DEL, &rule, sizeof(rule));
 			if (i) {
 				exitval = EX_UNAVAILABLE;
@@ -2483,7 +2488,7 @@ end_mask:
 			break;
 
 		default:
-			errx(EX_DATAERR, "unrecognised option ``%s''", *av);
+			errx(EX_DATAERR, "unrecognised option ``%s''", *(--av));
 		}
 	}
 	if (do_pipe == 1) {
