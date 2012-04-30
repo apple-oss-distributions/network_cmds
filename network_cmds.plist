@@ -5,12 +5,12 @@
 	<dict>
 		<key>OpenSourceProject</key>
 		<string>mtest</string>
-		<key>OpenSouceVersion</key>
+		<key>OpenSourceVersion</key>
 		<string>1.11</string>
 		<key>OpenSourceWebsiteURL</key>
 		<string>http://www.freebsd.org/cgi/cvsweb.cgi/src/usr.sbin/mtest/</string>
 		<key>OpenSourceURL</key>
-		<string>http://www.freebsd.org/cgi/cvsweb.cgi/src/usr.sbin/mtest/</string>
+		<string>http://www.freebsd.org/cgi/cvsweb.cgi/~checkout~/src/usr.sbin/mtest/mtest.c?rev=1.11;content-type=text%2Fplain</string>
 		<key>OpenSourceSHA1</key>
 		<string></string>
 		<key>OpenSourceMD5</key>
@@ -20,7 +20,7 @@
 		<key>OpenSourceLicense</key>
 		<string>Other</string>
 		<key>OpenSourceLicenseFile</key>
-		<string>mtest.txt</string>
+		<string>network_cmds.txt</string>
 	</dict>
 </array>
 </plist>
