@@ -139,20 +139,13 @@ static char ntop_buf[INET6_ADDRSTRLEN];		/* for inet_ntop() */
 /*
  * Display a formatted value, or a '-' in the same space.
  */
-static void
-show_stat(const char *fmt, int width, u_int64_t value, short showvalue)
-{
-	char newfmt[32];
-
-	/* Construct the format string */
-	if (showvalue) {
-		snprintf(newfmt, sizeof(newfmt), "%%%d%s", width, fmt);
-		printf(newfmt, value);
-	} else {
-		snprintf(newfmt, sizeof(newfmt), "%%%ds", width);
-		printf(newfmt, "-");
-	}
-}
+#define show_stat(fmt, width,  value, showvalue) do { \
+	if (showvalue) { \
+		printf("%*" fmt, width, value); \
+	} else { \
+		printf("%*s", width, "-"); \
+	} \
+} while (0)
 
 size_t
 get_rti_info(int addrs, struct sockaddr *sa, struct sockaddr **rti_info)
@@ -1407,10 +1400,10 @@ loop:
 	scheduler = ifcqs->ifqs_scheduler;
 
 	printf("%s:\n"
-	    "     [ sched: %9s  qlength:  %3d/%3d ]\n",
+	    "     [ sched: %18s  qlength:  %3d/%3d ]\n",
 	    interface, sched2str(ifcqs->ifqs_scheduler),
 	    ifcqs->ifqs_len, ifcqs->ifqs_maxlen);
-	printf("     [ pkts: %10llu  bytes: %10llu "
+	printf("     [ dequeued pkts: %10llu  bytes: %10llu "
 	    " dropped pkts: %6llu bytes: %6llu ]\n",
 	    ifcqs->ifqs_xmitcnt.packets, ifcqs->ifqs_xmitcnt.bytes,
 	    ifcqs->ifqs_dropcnt.packets, ifcqs->ifqs_dropcnt.bytes);
@@ -1481,9 +1474,9 @@ print_fq_codel_stats(int pri, struct fq_codel_classstats *fqst,
 	    fqst->fcls_budget, nsec_to_str(fqst->fcls_target_qdelay));
 	printf("update interval:%10s ]\n",
 	    nsec_to_str(fqst->fcls_update_interval));
-	printf("     [ flow control: %u\tfeedback: %u\tstalls: %u\tfailed: %u ]\n",
+	printf("     [ flow control: %u\tfeedback: %u\tstalls: %u\tfailed: %u \toverwhelming: %u ]\n",
 	    fqst->fcls_flow_control, fqst->fcls_flow_feedback,
-	    fqst->fcls_dequeue_stall, fqst->fcls_flow_control_fail);
+	    fqst->fcls_dequeue_stall, fqst->fcls_flow_control_fail, fqst->fcls_overwhelming);
 	printf("     [ drop overflow: %llu\tearly: %llu\tmemfail: %u\tduprexmt:%u ]\n",
 	    fqst->fcls_drop_overflow, fqst->fcls_drop_early,
 	    fqst->fcls_drop_memfailure, fqst->fcls_dup_rexmts);
