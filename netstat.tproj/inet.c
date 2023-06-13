@@ -103,6 +103,8 @@
 #include <TargetConditionals.h>
 #endif
 
+#include "network_cmds_lib.h"
+
 #define ROUNDUP64(a) \
 	((a) > 0 ? (1 + (((a) - 1) | (sizeof(uint64_t) - 1))) : sizeof(uint64_t))
 #define ADVANCE64(x, n) (((char *)x) += ROUNDUP64(n))
@@ -194,8 +196,8 @@ _serv_cache_getservbyport(int port, char *proto)
  */
 
 struct xgen_n {
-	u_int32_t	xgn_len;			/* length of this structure */
-	u_int32_t	xgn_kind;		/* number of PCBs at this time */
+	u_int32_t	xgn_len;	/* length of this structure */
+	u_int32_t	xgn_kind;	/* type of structure */
 };
 
 #define ALL_XGN_KIND_INP (XSO_SOCKET | XSO_RCVBUF | XSO_SNDBUF | XSO_STATS | XSO_INPCB)
@@ -1314,7 +1316,7 @@ inetname(struct in_addr *inp)
 			hp = gethostbyaddr((char *)inp, sizeof (*inp), AF_INET);
 			if (hp) {
 				cp = hp->h_name;
-				 //### trimdomain(cp, strlen(cp));
+				cp = clean_non_printable(cp, strlen(cp));
 			}
 		}
 	}
