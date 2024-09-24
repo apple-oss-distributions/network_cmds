@@ -410,7 +410,6 @@ double	deltaT(struct timeval *, struct timeval *);
 void	freehostinfo(struct hostinfo *);
 void	getaddr(u_int32_t *, char *);
 struct	hostinfo *gethostinfo(char *);
-u_short	in_cksum(u_short *, int);
 char	*inetname(struct in_addr);
 int	main(int, char **);
 u_short p_cksum(struct ip *, u_short *, int, int);
@@ -1566,7 +1565,7 @@ tcp_packet_ok(u_char *buf, int cc, struct sockaddr_in *from,
 void
 icmp_prep(struct outdata *outdata)
 {
-	struct icmp *const icmpheader = (struct icmp *) outp;
+	volatile struct icmp *const icmpheader = (struct icmp *) outp;
 
 	icmpheader->icmp_type = ICMP_ECHO;
 	icmpheader->icmp_id = htons(ident);
@@ -1589,7 +1588,7 @@ icmp_check(const u_char *data, int seq)
 void
 udp_prep(struct outdata *outdata)
 {
-	struct udphdr *const outudp = (struct udphdr *) outp;
+	volatile struct udphdr *const outudp = (struct udphdr *) outp;
 
 	outudp->uh_sport = htons(ident + (fixedPort ? outdata->seq : 0));
 	outudp->uh_dport = htons(port + (fixedPort ? 0 : outdata->seq));
@@ -1615,7 +1614,7 @@ udp_check(const u_char *data, int seq)
 void
 tcp_prep(struct outdata *outdata)
 {
-	struct tcphdr *const tcp = (struct tcphdr *) outp;
+	volatile struct tcphdr *const tcp = (struct tcphdr *) outp;
 
 	tcp->th_sport = htons(ident);
 	tcp->th_dport = htons(port + (fixedPort ? 0 : outdata->seq));
@@ -1718,7 +1717,7 @@ print(u_char *buf, int cc, struct sockaddr_in *from)
 u_short
 p_cksum(struct ip *ip, u_short *data, int len, int cov)
 {
-	static struct ipovly ipo;
+	static volatile struct ipovly ipo;
 	u_short sum[2];
 
 	ipo.ih_pr = ip->ip_p;
@@ -1730,41 +1729,6 @@ p_cksum(struct ip *ip, u_short *data, int len, int cov)
 	sum[0] = in_cksum(data, cov);                   /* payload data cksum */
 
 	return ~in_cksum(sum, sizeof(sum));
-}
-
-/*
- * Checksum routine for Internet Protocol family headers (C Version)
- */
-u_short
-in_cksum(u_short *addr, int len)
-{
-	int nleft = len;
-	u_short *w = addr;
-	u_short answer;
-	int sum = 0;
-
-	/*
-	 *  Our algorithm is simple, using a 32 bit accumulator (sum),
-	 *  we add sequential 16 bit words to it, and at the end, fold
-	 *  back all the carry bits from the top 16 bits into the lower
-	 *  16 bits.
-	 */
-	while (nleft > 1)  {
-		sum += *w++;
-		nleft -= 2;
-	}
-
-	/* mop up an odd byte, if necessary */
-	if (nleft == 1)
-		sum += *(u_char *)w;
-
-	/*
-	 * add back carry outs from top 16 bits to low 16 bits
-	 */
-	sum = (sum >> 16) + (sum & 0xffff);	/* add hi 16 to low 16 */
-	sum += (sum >> 16);			/* add carry */
-	answer = ~sum;				/* truncate to 16 bits */
-	return (answer);
 }
 
 /*
